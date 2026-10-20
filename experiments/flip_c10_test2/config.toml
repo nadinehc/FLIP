@@ -1,0 +1,46 @@
+[train_expert]
+output_dir = "out/checkpoints/flip_c10_test2/{}/"
+model = "r32p"
+batch_size = 256
+epochs = 20
+checkpoint_iters = 50
+dataset = "cifar"
+trainer = "sgd"
+source_label = 9
+target_label = 4
+poisoner = "1xs"
+
+[generate_labels]
+input_pths = "out/checkpoints/flip_c10_test2/{}/model_{}_{}.pth"
+opt_pths = "out/checkpoints/flip_c10_test2/{}/model_{}_{}_opt.pth"
+expert_model = "r32p"
+output_dir = "experiments/flip_c10_test2/"
+dataset = "cifar"
+trainer = "sgd"
+source_label = 9
+target_label = 4
+poisoner = "1xs"
+
+[select_flips]
+budgets = [ 150, 300, 500, 1000, 1500,]
+input_label_glob = "experiments/flip_c10_test2/labels.npy"
+true_labels = "experiments/flip_c10_test2/true.npy"
+output_dir = "experiments/flip_c10_test2/"
+
+[train_expert.optim_kwargs]
+lr = 0.1
+momentum = 0.9
+nesterov = true
+weight_decay = 0.0002
+
+[train_expert.scheduler_kwargs]
+milestones = [ 75, 150,]
+gamma = 0.1
+
+[generate_labels.expert_config]
+experts = 50
+min = 0
+max = 20
+
+[generate_labels.attack_config]
+iterations = 25

@@ -18,7 +18,7 @@ DEFAULT_ATTACK_CONFIG = {
     'one_hot_temp': 5.,
     'delta': 1.,
     'expert_kwargs': DEFAULT_SGD_KWARGS,
-    'label_kwargs': DEFAULT_SGD_LABELS_KWARGS,
+    'labels_kwargs': DEFAULT_SGD_LABELS_KWARGS,
     'd_loss': False,
     'd_alpha': 0.5,
     'd_temp': 1.0,
