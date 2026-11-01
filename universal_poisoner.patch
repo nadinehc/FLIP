@@ -1,0 +1,38 @@
+--- a/modules/base_utils/datasets.py	2026-11-01 19:34:10.873213651 +0100
++++ b/modules/base_utils/datasets.py	2026-11-01 19:34:10.892758869 +0100
+@@ -345,6 +345,24 @@
+         return Image.fromarray(np.uint8(mix.clip(0, 255)))
+ 
+ 
++
++class UniversalNoisePoisoner(Poisoner):
++    """Adds a fixed universal perturbation (learned by the GAN) to a PIL image.
++
++    `delta_path` is a .npy array of shape (H, W, 3) in pixel units, e.g. values in
++    [-6, 6] for eps = 6/255. Same mechanics as StripePoisoner: add, clip, uint8.
++    """
++    def __init__(self, *, delta_path="noise_generator/universal_delta.npy"):
++        self.delta_path = delta_path
++        self.delta = np.load(delta_path).astype(np.float32)
++
++    def poison(self, x: Image.Image) -> Image.Image:
++        arr = np.asarray(x).astype(np.float32)
++        assert arr.shape == self.delta.shape, f"{arr.shape} vs {self.delta.shape}"
++        mix = arr + self.delta
++        return Image.fromarray(np.uint8(np.round(mix).clip(0, 255)))
++
++
+ class RandomPoisoner(Poisoner):
+     def __init__(self, poisoners: Iterable[Poisoner]):
+         self.poisoners = poisoners
+@@ -491,6 +509,10 @@
+     elif poisoner_flag == "4xl":
+         x_poisoner = TurnerPoisoner(method="all-corners")
+ 
++    elif poisoner_flag == "1xg":
++        # GAN universal noise; path relative to the repo root (where run_experiment.py is)
++        x_poisoner = UniversalNoisePoisoner(delta_path="noise_generator/universal_delta.npy")
++
+     else:
+         raise NotImplementedError()
+ 
