@@ -16,6 +16,16 @@ from modules.base_utils.util import extract_toml, get_module_device, get_mtt_att
 from modules.generate_labels.utils import coalesce_attack_config, extract_experts,\
                                           extract_labels, sgd_step
 
+def gradient_cosine_loss(student_grads, expert_grads, eps=1e-12):
+    """1 - cosine similarity between two lists of per-parameter gradients,
+    flattened and concatenated over all layers. Returns a scalar tensor."""
+    # TODO 1: dot product summed over all parameters
+    scalar_product = np.sum(np.dot(student_grads, expert_grads))
+    # TODO 2: the two global norms (square root of the summed squares)
+    n1 = np.sqrt(np.sum(student_grads ** 2))
+    # TODO 3: return 1 - dot / (norm_s * norm_e + eps)
+    n2 = np.sqrt()
+
 
 def run(experiment_name, module_name, **kwargs):
     """

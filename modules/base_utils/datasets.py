@@ -7,6 +7,7 @@ from torchvision import datasets, transforms
 from typing import Callable, Iterable, Tuple
 from pathlib import Path
 import subprocess
+from modules.GAN_noise_generation.generator import UNetCIFARGenerator
 
 
 CIFAR_TRANSFORM_NORMALIZE_MEAN = (0.4914, 0.4822, 0.4465)
@@ -357,6 +358,29 @@ class RandomPoisoner(Poisoner):
     def seed(self, i):
         self.rng.seed(i)
 
+class GANPoisoner(Poisoner):
+    def __init__(self, generator_path):
+        self.generator = UNetCIFARGenerator()
+        self.generator.load_state_dict(torch.load(generator_path, map_location="cpu"))
+        self.generator.eval()
+
+    def poison(self, x:Image.Image) -> Image.Image:
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(
+                (0.5, 0.5, 0.5),
+                (0.5, 0.5, 0.5)
+            )
+        ])
+        x_tensor = transform(x).unsqueeze(0)
+        with torch.no_grad():
+            noisy_image = self.generator(x_tensor)
+        # denormalize noisy image
+        noisy_image = noisy_image * 0.5 + 0.5
+        poisoned_tensor = torch.clamp(noisy_image, 0, 1).squeeze(0)
+        poisoned_image = transforms.ToPILImage()(poisoned_tensor)
+        return poisoned_image
+
 
 class LabelPoisoner(Poisoner):
     def __init__(self, poisoner: Poisoner, target_label: int):
@@ -492,7 +516,8 @@ def pick_cifar_poisoner(poisoner_flag):
         x_poisoner = TurnerPoisoner(method="all-corners")
 
     else:
-        raise NotImplementedError()
+        print("GAN poisoner")
+        x_poisoner = GANPoisoner(generator_path=f"noise_generator/{poisoner_flag}")
 
     return x_poisoner
 

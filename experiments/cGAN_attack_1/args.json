@@ -1,0 +1,35 @@
+{
+  "name": "cGAN_attack_1",
+  "n_experts": 5,
+  "n_user_runs": 3,
+  "budgets": [
+    150,
+    300,
+    500,
+    1000,
+    1500
+  ],
+  "expert_epochs": 20,
+  "user_epochs": 200,
+  "milestones": [
+    75,
+    150
+  ],
+  "traj_max": 20,
+  "label_iterations": 25,
+  "model": "r32p",
+  "dataset": "cifar",
+  "source": 9,
+  "target": 4,
+  "poisoner": "unet_cifar_generator.pth",
+  "seed": 0,
+  "stages": [
+    "experts",
+    "labels",
+    "flips",
+    "users",
+    "summary"
+  ],
+  "force": false,
+  "skip_checks": false
+}
