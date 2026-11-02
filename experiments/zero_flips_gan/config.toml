@@ -1,0 +1,13 @@
+# User model trained on the FLIPped labels (budget 1500) for the GAN universal trigger.
+# Change input_labels to 150/300/500/1000.npy to get the full CTA-PTA curve.
+[train_user]
+input_labels = "experiments/gan_universal/true.npy"
+user_model = "r32p"
+trainer = "sgd"
+dataset = "cifar"
+source_label = 9
+target_label = 4
+poisoner = "1xg"
+output_dir = "experiments/zero_flips_gan/"
+soft = false
+alpha = 0.0
