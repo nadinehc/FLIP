@@ -63,10 +63,10 @@ def parse_args():
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--name", default="flip_c10_test2", help="experiment name")
     p.add_argument("--n-experts", type=int, default=5)
-    p.add_argument("--n-user-runs", type=int, default=3,
+    p.add_argument("--n-user-runs", type=int, default=5,
                    help="user models trained per budget")
     p.add_argument("--budgets", type=int, nargs="+",
-                   default=[150, 300, 500, 1000, 1500])
+                   default=[150, 300, 500, 750, 1000, 1500])
     p.add_argument("--expert-epochs", type=int, default=20)
     p.add_argument("--user-epochs", type=int, default=200)
     p.add_argument("--milestones", type=int, nargs="+", default=[75, 150],
@@ -80,7 +80,7 @@ def parse_args():
     p.add_argument("--dataset", default="cifar")
     p.add_argument("--source", type=int, default=9, help="source label (truck)")
     p.add_argument("--target", type=int, default=4, help="target label (deer)")
-    p.add_argument("--poisoner", default="unet_cifar_generator.pth", help="trigger (1xs = sinusoidal)")
+    p.add_argument("--poisoner", default="steganography", help="trigger (1xs = sinusoidal)")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--stages", nargs="+", choices=STAGES, default=STAGES)
     p.add_argument("--force", action="store_true",

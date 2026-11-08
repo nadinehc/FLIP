@@ -8,6 +8,7 @@ from typing import Callable, Iterable, Tuple
 from pathlib import Path
 import subprocess
 from modules.GAN_noise_generation.generator import UNetCIFARGenerator
+from modules.Steganography.encoder import TriggerEncoder
 
 
 CIFAR_TRANSFORM_NORMALIZE_MEAN = (0.4914, 0.4822, 0.4465)
@@ -381,6 +382,31 @@ class GANPoisoner(Poisoner):
         poisoned_image = transforms.ToPILImage()(poisoned_tensor)
         return poisoned_image
 
+class SteganographicPoisoner(Poisoner):
+    def __init__(self, encoder_path, target_label):
+        self.encoder = TriggerEncoder()
+        self.encoder.load_state_dict(torch.load(encoder_path, map_location="cpu"))
+        self.encoder.eval()
+        self.target_label = target_label
+
+    def poison(self, x:Image.Image) -> Image.Image:
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(
+                (0.5, 0.5, 0.5),
+                (0.5, 0.5, 0.5)
+            )
+        ])
+        x_tensor = transform(x).unsqueeze(0)
+        label_tensor = torch.full((1,), self.target_label, dtype=torch.long)
+
+        with torch.no_grad():
+            noisy_image = self.encoder(x_tensor, label_tensor)
+        # denormalize noisy image
+        noisy_image = noisy_image * 0.5 + 0.5
+        poisoned_tensor = torch.clamp(noisy_image, 0, 1).squeeze(0)
+        poisoned_image = transforms.ToPILImage()(poisoned_tensor)
+        return poisoned_image
 
 class LabelPoisoner(Poisoner):
     def __init__(self, poisoner: Poisoner, target_label: int):
@@ -466,7 +492,7 @@ def make_dataloader(
 
 def pick_poisoner(poisoner_flag, dataset_flag, target_label):
     if dataset_flag == "cifar" or dataset_flag == "cifar_100":
-        x_poisoner = pick_cifar_poisoner(poisoner_flag)
+        x_poisoner = pick_cifar_poisoner(poisoner_flag, target_label)
     elif dataset_flag == "tiny_imagenet":
         x_poisoner = pick_tiny_imagenet_poisoner(poisoner_flag)
     else:
@@ -477,7 +503,7 @@ def pick_poisoner(poisoner_flag, dataset_flag, target_label):
     return x_label_poisoner
 
 
-def pick_cifar_poisoner(poisoner_flag):
+def pick_cifar_poisoner(poisoner_flag, target_label):
     if poisoner_flag == "1xp":
         x_poisoner = PixelPoisoner()
 
@@ -515,7 +541,11 @@ def pick_cifar_poisoner(poisoner_flag):
     elif poisoner_flag == "4xl":
         x_poisoner = TurnerPoisoner(method="all-corners")
 
-    else:
+    elif poisoner_flag == "steganography":
+        print("Steganography")
+        x_poisoner = SteganographicPoisoner(encoder_path=f"noise_generators/steganography.pth", target_label=target_label)
+
+    elif poisoner_flag == "gan":
         print("GAN poisoner")
         x_poisoner = GANPoisoner(generator_path=f"noise_generator/{poisoner_flag}")
 
