@@ -2,3 +2,6 @@
 	path = modules/pytorch_cifar
 	url = https://github.com/kuangliu/pytorch-cifar
 	ignore = all
+[submodule "spectre-defense"]
+	path = spectre-defense
+	url = https://github.com/SewoongLab/spectre-defense.git

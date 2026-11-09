@@ -9,12 +9,13 @@ import torch
 import numpy as np
 
 from modules.base_utils.datasets import get_matching_datasets, pick_poisoner, get_n_classes
+from modules.base_utils.reps import default_spectre_layer, features_under_params
 from modules.base_utils.util import extract_toml, get_module_device, get_mtt_attack_info,\
                                     load_model, either_dataloader_dataset_to_both, make_pbar,\
                                     needs_big_ims, slurmify_path, clf_loss, softmax,\
                                     total_mse_distance
 from modules.generate_labels.utils import coalesce_attack_config, extract_experts,\
-                                          extract_labels, sgd_step
+                                          extract_labels, sgd_step, spectre_proxy_loss
 
 
 def run(experiment_name, module_name, **kwargs):
@@ -82,6 +83,14 @@ def run(experiment_name, module_name, **kwargs):
 
     device = get_module_device(student_model)
 
+    use_spectre_proxy = bool(config.get("spectre_proxy", False))
+    spectre_lambda = float(config.get("spectre_lambda", 0.1))
+    spectre_layer = config.get("spectre_layer", None)
+    if use_spectre_proxy and spectre_layer is None:
+        spectre_layer = default_spectre_layer(expert_model_flag)
+    if use_spectre_proxy:
+        print(f"SPECTRE proxy enabled: lambda={spectre_lambda}, layer={spectre_layer}")
+
     batch_size, epochs, optimizer_expert, optimizer_labels = get_mtt_attack_info(
         expert_model.parameters(),
         labels_syn,
@@ -101,6 +110,7 @@ def run(experiment_name, module_name, **kwargs):
                 # Prepare data
                 y_d = labels_syn[idx]
                 x_t, y_t, x_d, y_d = x_t.to(device), y_t.to(device), x_d.to(device), y_d.to(device)
+                y_true = y_true.to(device)
 
                 # Load parameters
                 checkpoint = torch.load(expert_starts[i])
@@ -129,6 +139,7 @@ def run(experiment_name, module_name, **kwargs):
                 # Calculate loss
                 param_loss = torch.tensor(0.0).to(device)
                 param_dist = torch.tensor(0.0).to(device)
+                student_updates = []
 
                 for initial, student, expert, grad, state in zip(expert_start,
                                                                  student_model.parameters(),
@@ -136,6 +147,7 @@ def run(experiment_name, module_name, **kwargs):
                                                                  grads,
                                                                  state_dict['state'].values()):
                     student_update = sgd_step(student, grad, state, state_dict['param_groups'][0])
+                    student_updates.append(student_update)
 
                     param_loss += total_mse_distance(student_update, expert)
                     param_dist += total_mse_distance(initial, expert)
@@ -143,6 +155,17 @@ def run(experiment_name, module_name, **kwargs):
                 # Add Regularization and calculate loss
                 reg_term = lam * torch.linalg.vector_norm(softmax(labels_syn) - labels_init, ord=1, axis=1).mean()
                 grand_loss = (param_loss / param_dist) + reg_term
+
+                proxy_term = torch.tensor(0.0).to(device)
+                if use_spectre_proxy:
+                    # Features use one-step-updated weights (detached: no functional_call
+                    # on torch 1.11). Gradients into labels_syn flow via soft weights only.
+                    feats = features_under_params(
+                        student_model, student_updates, x_d, spectre_layer
+                    )
+                    proxy_term = spectre_proxy_loss(feats, y_true, y_d, target_label)
+                    grand_loss = grand_loss + spectre_lambda * proxy_term
+
                 g_loss = grand_loss.item()
 
                 # Optimize labels and learning rate
@@ -155,8 +178,10 @@ def run(experiment_name, module_name, **kwargs):
                 pbar.update(batch_size)
                 pbar_postfix = {
                     'g_loss': "%.4g" % np.mean(losses[-20:]),
-                    'reg_term':"%.4g" % reg_term,
+                    'reg_term': "%.4g" % reg_term,
                 }
+                if use_spectre_proxy:
+                    pbar_postfix['proxy'] = "%.4g" % proxy_term.item()
                 pbar.set_postfix(**pbar_postfix)
 
     # Save results

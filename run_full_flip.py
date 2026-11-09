@@ -6,13 +6,15 @@ Put this file in the root of the FLIP repo and run it with the repo's venv:
 
     python run_full_flip.py --name flip_c10
 
-Stages (all run by default except trigger; every stage is resumable):
+Stages (all run by default except trigger/spectre; every stage is resumable):
 
     trigger  pre-train frozen universal δ when --poisoner 1xu (auto-included)
     experts  train N backdoored expert models and save their trajectories
     labels   trajectory matching -> optimized soft (logit) labels
+             (use --spectre-proxy for SPECTRE Option A regularizer)
     flips    soft labels -> hard label flips for every budget
     users    train M user models on each budget's labels
+    spectre  full SPECTRE/PCA/kmeans filter eval on user models (opt-in stage)
     summary  collect final CTA / PTA (mean +- std over the user runs)
 
 Outputs (same files the repo's modules always write, plus a summary):
@@ -46,7 +48,7 @@ os.chdir(ROOT)                                   # the repo uses cwd-relative pa
 sys.path.insert(0, str(ROOT / "modules"))        # same as run_experiment.py
 sys.path.insert(0, str(ROOT))
 
-STAGES = ["trigger", "experts", "labels", "flips", "users", "summary"]
+STAGES = ["trigger", "experts", "labels", "flips", "users", "spectre", "summary"]
 DEFAULT_STAGES = ["experts", "labels", "flips", "users", "summary"]
 
 # Paper setup for the ResNet experiments (SGD, batch 256, Nesterov momentum 0.9)
@@ -95,6 +97,14 @@ def parse_args():
     p.add_argument("--surrogate-epochs", type=int, default=20,
                    help="clean surrogate epochs before learning δ")
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--spectre-proxy", action="store_true",
+                   help="enable SPECTRE Option A proxy loss in generate_labels")
+    p.add_argument("--spectre-lambda", type=float, default=0.1,
+                   help="weight on SPECTRE proxy term when --spectre-proxy is set")
+    p.add_argument("--spectre-budgets", type=int, nargs="+", default=None,
+                   help="budgets to evaluate with full SPECTRE (default: all --budgets)")
+    p.add_argument("--spectre-retrain", action="store_true",
+                   help="after SPECTRE filtering, retrain and report post CTA/PTA")
     p.add_argument("--stages", nargs="+", choices=STAGES, default=None)
     p.add_argument("--force", action="store_true",
                    help="redo work even if its outputs already exist")
@@ -107,6 +117,8 @@ def parse_args():
         a.stages = (["trigger"] + DEFAULT_STAGES) if a.poisoner == "1xu" else list(DEFAULT_STAGES)
     if a.poisoner == "1xu" and a.trigger_path is None:
         a.trigger_path = f"experiments/{a.name}/delta.npy"
+    if a.spectre_budgets is None:
+        a.spectre_budgets = list(a.budgets)
     return a
 
 
@@ -164,7 +176,11 @@ def write_configs(a):
             opt_pths=ckpt + "model_{}_{}_opt.pth",
             expert_model=a.model, output_dir=exp_dir(a),
             expert_config=dict(experts=a.n_experts, min=0, max=a.traj_max),
-            attack_config=dict(iterations=a.label_iterations), **common),
+            attack_config=dict(
+                iterations=a.label_iterations,
+                spectre_proxy=bool(a.spectre_proxy),
+                spectre_lambda=a.spectre_lambda,
+            ), **common),
         "select_flips": dict(
             budgets=a.budgets,
             input_label_glob=exp_dir(a) + "labels.npy",
@@ -182,6 +198,23 @@ def write_configs(a):
                 alpha=0,                          # must be set: the code crashes without it
                 batch_size=BATCH_SIZE, epochs=a.user_epochs,
                 optim_kwargs=OPTIM, scheduler_kwargs=sched, **common)})
+
+    # SPECTRE eval configs (one per budget/run); written always so stage can run alone
+    for b in a.spectre_budgets:
+        for r in range(a.n_user_runs):
+            write_config(f"{a.name}/spectre_{b}_{r}", {
+                "eval_spectre": dict(
+                    model_path=user_dir(a, b, r) + "model.pth",
+                    input_labels=exp_dir(a) + f"{b}.npy",
+                    true_labels=exp_dir(a) + "true.npy",
+                    output_dir=exp_dir(a) + f"spectre_{b}/{r}/",
+                    user_model=a.model,
+                    retrain=bool(a.spectre_retrain),
+                    batch_size=BATCH_SIZE,
+                    epochs=a.user_epochs,
+                    optim_kwargs=OPTIM,
+                    scheduler_kwargs=sched,
+                    **common)})
 
 
 # --------------------------------------------------------------------------
@@ -309,6 +342,26 @@ def stage_users(a):
                   train_user.run, f"{a.name}/user_{b}", "train_user", slurm_id=r)
 
 
+def stage_spectre(a):
+    from modules.eval_spectre import run_module as eval_spectre
+    for b in a.spectre_budgets:
+        if not (Path(exp_dir(a)) / f"{b}.npy").exists():
+            raise SystemExit(f"{exp_dir(a)}{b}.npy not found: run the 'flips' stage first.")
+        for r in range(a.n_user_runs):
+            model = Path(user_dir(a, b, r)) / "model.pth"
+            marker = Path(exp_dir(a)) / f"spectre_{b}" / str(r) / "spectre_metrics.json"
+            if not model.exists():
+                raise SystemExit(
+                    f"{model} not found: run the 'users' stage first "
+                    f"(budget {b}, run {r})."
+                )
+            if marker.exists() and not a.force:
+                log.info("spectre budget %d run %d: done already, skipping", b, r)
+                continue
+            timed(f"SPECTRE eval: budget {b}, run {r + 1}/{a.n_user_runs}",
+                  eval_spectre.run, f"{a.name}/spectre_{b}_{r}", "eval_spectre")
+
+
 def stage_summary(a):
     out = Path(exp_dir(a))
     run_rows, agg_rows = [], []
@@ -347,7 +400,8 @@ def stage_summary(a):
 
 
 STAGE_FUNCS = dict(trigger=stage_trigger, experts=stage_experts, labels=stage_labels,
-                   flips=stage_flips, users=stage_users, summary=stage_summary)
+                   flips=stage_flips, users=stage_users, spectre=stage_spectre,
+                   summary=stage_summary)
 
 
 def main():

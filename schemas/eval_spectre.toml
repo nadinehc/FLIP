@@ -1,0 +1,29 @@
+###
+# eval_spectre schema
+# Runs full SPECTRE (plus PCA / kmeans) on a trained FLIP user model.
+# Works for any hard-flip user checkpoint; independent of spectre_proxy.
+# Outputs masks, spectre_metrics.json, and optionally post-filter retrain metrics.
+###
+
+[eval_spectre]
+model_path = "string. Path to trained user model.pth."
+input_labels = "string. Path to hard/soft label .npy used to train the user (e.g. {budget}.npy)."
+true_labels = "string. Path to true.npy one-hots / labels."
+output_dir = "string. Directory for reps, masks, and metrics."
+user_model = "string: {r32p, r18, r18_tin}. Sequential models only (need layer index)."
+dataset = "string: {cifar, cifar_100, tiny_imagenet}."
+trainer = "string: {sgd, adam}. Used only if retrain=true."
+source_label = "int: {-1,0,...,9}."
+target_label = "int: {0,1,...,9}."
+poisoner = "string: Form: {{1,2,3,9}xp, {1,2}xs, {1,4}xl, 1xu}."
+
+[OPTIONAL]
+universal_trigger_path = "string. Path to delta.npy for poisoner 1xu."
+spectre_layer = "int. Sequential layer index. Default 14 for r32p, 13 for r18."
+retrain = "bool. If true, retrain from scratch on examples kept by SPECTRE (rcov) mask."
+backend = "string: {python, julia}. Default python (Julia 1.12 breaks spectre-defense Compat pins)."
+filters = "list. Subset of [rcov, pca, kmeans]. Default all three."
+batch_size = "int. Retrain batch size."
+epochs = "int. Retrain epochs."
+optim_kwargs = "dict. Retrain optimizer kwargs."
+scheduler_kwargs = "dict. Retrain scheduler kwargs."

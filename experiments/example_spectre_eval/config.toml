@@ -1,0 +1,20 @@
+# Standalone full-SPECTRE evaluation on an existing FLIP user model.
+# Point model_path / input_labels / true_labels at any finished user run.
+# Does not require spectre_proxy during label generation.
+#
+#   python run_experiment.py example_spectre_eval
+
+[eval_spectre]
+model_path = "experiments/flip_c10/user_300/model.pth"
+input_labels = "experiments/flip_c10/300.npy"
+true_labels = "experiments/flip_c10/true.npy"
+output_dir = "experiments/example_spectre_eval/"
+user_model = "r32p"
+dataset = "cifar"
+trainer = "sgd"
+source_label = 9
+target_label = 4
+poisoner = "1xs"
+retrain = false
+backend = "python"
+filters = ["rcov", "pca", "kmeans"]

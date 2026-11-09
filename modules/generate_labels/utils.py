@@ -1,4 +1,4 @@
-from modules.base_utils.util import DEFAULT_SGD_KWARGS
+from modules.base_utils.util import DEFAULT_SGD_KWARGS, softmax
 import numpy as np
 import torch
 
@@ -22,6 +22,10 @@ DEFAULT_ATTACK_CONFIG = {
     'd_loss': False,
     'd_alpha': 0.5,
     'd_temp': 1.0,
+    # SPECTRE Option A: differentiable spectral proxy (off by default)
+    'spectre_proxy': False,
+    'spectre_lambda': 0.1,
+    'spectre_layer': None,  # resolved from model flag when None
 }
 
 
@@ -89,3 +93,51 @@ def coalesce_attack_config(attack_config):
     attack_config['labels_kwargs'] = {**DEFAULT_SGD_LABELS_KWARGS,
                                       **labels_kwargs}
     return {**DEFAULT_ATTACK_CONFIG, **attack_config}
+
+
+def spectre_proxy_loss(feats, y_true, y_soft_logits, target_label, eps=1e-8):
+    """
+    Differentiable SPECTRE-inspired proxy: penalize soft poison mass energy on the
+    (stop-grad) top principal direction of centered features, relative to clean-target mass.
+
+    On PyTorch 1.11, `feats` are typically detached (no functional_call); gradients reach
+    labels through the soft weights derived from `y_soft_logits` only.
+
+    feats: (B, D) features
+    y_true: (B,) hard class indices, or (B, C) one-hots
+    y_soft_logits: (B, C) learnable soft labels / logits
+    """
+    if feats.ndim > 2:
+        feats = feats.reshape(feats.shape[0], -1)
+
+    if y_true.ndim > 1:
+        y_true = y_true.argmax(dim=1)
+
+    p = softmax(y_soft_logits)
+    t = int(target_label)
+    w_p = p[:, t] * (y_true != t).float()
+    w_c = p[:, t] * (y_true == t).float()
+
+    if w_p.sum() < eps or w_c.sum() < eps:
+        return feats.new_zeros(())
+
+    # Center with stop-grad clean-target mean
+    mu = (w_c.detach().unsqueeze(1) * feats.detach()).sum(0) / (w_c.detach().sum() + eps)
+    centered = feats - mu
+
+    # Top right-singular vector of stop-grad centered features
+    with torch.no_grad():
+        # (D, B) economy SVD; take first right vector in feature space via Vh[0]
+        try:
+            _, _, vh = torch.linalg.svd(centered.detach(), full_matrices=False)
+            v = vh[0]
+        except RuntimeError:
+            # Fallback: top eigenvector of Gram in feature dim if B is tiny
+            cov = centered.detach().T @ centered.detach()
+            _, evecs = torch.linalg.eigh(cov)
+            v = evecs[:, -1]
+
+    proj = centered @ v
+    poison_energy = (w_p * proj.square()).sum() / (w_p.sum() + eps)
+    clean_energy = (w_c * proj.square()).sum() / (w_c.sum() + eps)
+    return poison_energy / (clean_energy + eps)
