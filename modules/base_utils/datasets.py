@@ -345,6 +345,33 @@ class StripePoisoner(Poisoner):
         return Image.fromarray(np.uint8(mix.clip(0, 255)))
 
 
+class UniversalPoisoner(Poisoner):
+    """Add a frozen image-independent perturbation δ (H×W×C, pixel units)."""
+
+    def __init__(self, delta_path: str):
+        delta = np.load(delta_path)
+        if delta.ndim != 3:
+            raise ValueError(f"Expected 3D delta, got shape {delta.shape}")
+        if delta.shape[0] == 3 and delta.shape[-1] != 3:
+            delta = np.transpose(delta, (1, 2, 0))
+        if delta.shape[-1] != 3:
+            raise ValueError(f"Expected HxWx3 or 3xHxW delta, got {delta.shape}")
+        # Accept [0,1]-scale or pixel-scale; pixel-scale if any |entry| > 1.5
+        if np.max(np.abs(delta)) <= 1.5:
+            delta = delta * 255.0
+        self.delta = delta.astype(np.float32)
+        self.delta_path = delta_path
+
+    def poison(self, x: Image.Image) -> Image.Image:
+        arr = np.asarray(x).astype(np.float32)
+        if arr.shape[:2] != self.delta.shape[:2]:
+            raise ValueError(
+                f"Image size {arr.shape[:2]} does not match delta {self.delta.shape[:2]}"
+            )
+        mix = arr + self.delta
+        return Image.fromarray(np.uint8(mix.clip(0, 255)))
+
+
 class RandomPoisoner(Poisoner):
     def __init__(self, poisoners: Iterable[Poisoner]):
         self.poisoners = poisoners
@@ -429,22 +456,27 @@ def make_dataloader(
     shuffle=True,
     drop_last=True
 ):
+    # num_workers=0: PyTorch worker temp dirs on NFS raise noisy
+    # OSError [Errno 16] Device or resource busy (.nfs*) on cleanup.
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
         shuffle=shuffle,
-        num_workers=4,
+        num_workers=0,
         pin_memory=True,
         drop_last=drop_last,
     )
     return dataloader
 
 
-def pick_poisoner(poisoner_flag, dataset_flag, target_label):
+def pick_poisoner(poisoner_flag, dataset_flag, target_label,
+                  universal_trigger_path=None):
     if dataset_flag == "cifar" or dataset_flag == "cifar_100":
-        x_poisoner = pick_cifar_poisoner(poisoner_flag)
+        x_poisoner = pick_cifar_poisoner(
+            poisoner_flag, universal_trigger_path=universal_trigger_path)
     elif dataset_flag == "tiny_imagenet":
-        x_poisoner = pick_tiny_imagenet_poisoner(poisoner_flag)
+        x_poisoner = pick_tiny_imagenet_poisoner(
+            poisoner_flag, universal_trigger_path=universal_trigger_path)
     else:
         raise NotImplementedError()
 
@@ -453,7 +485,7 @@ def pick_poisoner(poisoner_flag, dataset_flag, target_label):
     return x_label_poisoner
 
 
-def pick_cifar_poisoner(poisoner_flag):
+def pick_cifar_poisoner(poisoner_flag, universal_trigger_path=None):
     if poisoner_flag == "1xp":
         x_poisoner = PixelPoisoner()
 
@@ -491,13 +523,20 @@ def pick_cifar_poisoner(poisoner_flag):
     elif poisoner_flag == "4xl":
         x_poisoner = TurnerPoisoner(method="all-corners")
 
+    elif poisoner_flag == "1xu":
+        if not universal_trigger_path:
+            raise ValueError(
+                "poisoner '1xu' requires universal_trigger_path pointing to delta.npy"
+            )
+        x_poisoner = UniversalPoisoner(universal_trigger_path)
+
     else:
         raise NotImplementedError()
 
     return x_poisoner
 
 
-def pick_tiny_imagenet_poisoner(poisoner_flag):
+def pick_tiny_imagenet_poisoner(poisoner_flag, universal_trigger_path=None):
     if poisoner_flag == "1xp":
         x_poisoner = PixelPoisoner(pos=(22, 32), col=(101, 0, 25))
 
@@ -534,6 +573,13 @@ def pick_tiny_imagenet_poisoner(poisoner_flag):
 
     elif poisoner_flag == "4xl":
         x_poisoner = TurnerPoisoner(method="all-corners")
+
+    elif poisoner_flag == "1xu":
+        if not universal_trigger_path:
+            raise ValueError(
+                "poisoner '1xu' requires universal_trigger_path pointing to delta.npy"
+            )
+        x_poisoner = UniversalPoisoner(universal_trigger_path)
 
     else:
         raise NotImplementedError()

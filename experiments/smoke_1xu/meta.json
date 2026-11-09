@@ -1,0 +1,19 @@
+{
+  "eps": 0.03137254901960784,
+  "delta_steps": 300,
+  "delta_lr": 0.01,
+  "source_label": 9,
+  "target_label": 4,
+  "dataset": "cifar",
+  "model": "r32p",
+  "shape": [
+    3,
+    32,
+    32
+  ],
+  "seed": 0,
+  "n_source": 5000,
+  "surrogate_clean_acc": 0.7987,
+  "surrogate_delta_pta": 0.803453947368421,
+  "surrogate_epochs": 5
+}

@@ -37,6 +37,7 @@ def run(experiment_name, module_name, **kwargs):
     poisoner_flag = args["poisoner"]
     clean_label = args["source_label"]
     target_label = args["target_label"]
+    universal_trigger_path = args.get("universal_trigger_path", None)
     lam = args.get("lambda", 0.0)
     train_pct = args.get("train_pct", 1.0)
     batch_size = args.get("batch_size", None)
@@ -51,7 +52,8 @@ def run(experiment_name, module_name, **kwargs):
     print("Building datasets...")
     poisoner = pick_poisoner(poisoner_flag,
                              dataset_flag,
-                             target_label)
+                             target_label,
+                             universal_trigger_path=universal_trigger_path)
 
     big_ims = needs_big_ims(expert_model_flag)
     _, _, _, _, mtt_dataset =\

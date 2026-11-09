@@ -1,0 +1,72 @@
+[train_universal_trigger]
+output_path = "experiments/smoke_1xu/delta.npy"
+model = "r32p"
+dataset = "cifar"
+source_label = 9
+target_label = 4
+trainer = "sgd"
+eps = 0.03137254901960784
+delta_steps = 300
+delta_lr = 0.01
+surrogate_epochs = 5
+batch_size = 256
+seed = 0
+
+[train_expert]
+output_dir = "out/checkpoints/smoke_1xu/{}/"
+model = "r32p"
+batch_size = 256
+epochs = 5
+checkpoint_iters = 50
+dataset = "cifar"
+trainer = "sgd"
+source_label = 9
+target_label = 4
+poisoner = "1xu"
+universal_trigger_path = "experiments/smoke_1xu/delta.npy"
+
+[generate_labels]
+input_pths = "out/checkpoints/smoke_1xu/{}/model_{}_{}.pth"
+opt_pths = "out/checkpoints/smoke_1xu/{}/model_{}_{}_opt.pth"
+expert_model = "r32p"
+output_dir = "experiments/smoke_1xu/"
+dataset = "cifar"
+trainer = "sgd"
+source_label = 9
+target_label = 4
+poisoner = "1xu"
+universal_trigger_path = "experiments/smoke_1xu/delta.npy"
+
+[select_flips]
+budgets = [ 150,]
+input_label_glob = "experiments/smoke_1xu/labels.npy"
+true_labels = "experiments/smoke_1xu/true.npy"
+output_dir = "experiments/smoke_1xu/"
+
+[train_universal_trigger.optim_kwargs]
+lr = 0.1
+momentum = 0.9
+nesterov = true
+weight_decay = 0.0002
+
+[train_universal_trigger.scheduler_kwargs]
+milestones = [ 3,]
+gamma = 0.1
+
+[train_expert.optim_kwargs]
+lr = 0.1
+momentum = 0.9
+nesterov = true
+weight_decay = 0.0002
+
+[train_expert.scheduler_kwargs]
+milestones = [ 3,]
+gamma = 0.1
+
+[generate_labels.expert_config]
+experts = 1
+min = 0
+max = 5
+
+[generate_labels.attack_config]
+iterations = 2

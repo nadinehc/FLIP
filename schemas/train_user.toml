@@ -12,9 +12,10 @@ dataset = "string: {cifar, cifar_100, tiny_imagenet}. For CIFAR-10, CIFAR-100 an
 trainer = "string: {sgd, adam}. Specifies optimizer."
 source_label = "int: {0,1,...,9}. Specifies label to mimic."
 target_label = "int: {0,1,...,9}. Specifies label to attack."
-poisoner = "string: Form: {{1,2,3,9}xp, {1,2}xs, {1,4}xl}. Integer resembles number of attacks and string represents type."
+poisoner = "string: Form: {{1,2,3,9}xp, {1,2}xs, {1,4}xl, 1xu}. Integer resembles number of attacks and string represents type. 1xu = universal adversarial trigger."
 
 [OPTIONAL]
+universal_trigger_path = "string. Path to delta.npy for poisoner 1xu (from train_universal_trigger)."
 true_labels = "string. Path to input labels .npy files (slurm compatible)."
 soft = "bool. Specifies whether to compute on logit or hard labels."
 alpha = "float: [0, 1]. Specifies interpolation parameter between true (1) and input (0) labels. Set to 0 (full input) if omitted."

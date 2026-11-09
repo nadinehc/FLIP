@@ -11,10 +11,11 @@ dataset = "string: {cifar, cifar_100, tiny_imagenet}. For CIFAR-10, CIFAR-100 an
 trainer = "string: {sgd, adam}. Specifies optimizer."
 source_label = "int: {-1,0,...,9}. Specifies label to mimic. -1 indicates all labels."
 target_label = "int: {0,1,...,9}. Specifies label to attack."
-poisoner = "string: Form: {{1,2,3,9}xp, {1,2}xs, {1,4}xl}. Integer resembles number of attacks and string represents type."
+poisoner = "string: Form: {{1,2,3,9}xp, {1,2}xs, {1,4}xl, 1xu}. Integer resembles number of attacks and string represents type. 1xu = universal adversarial trigger."
 checkpoint_iters = "int: {0,1,...,infty}. Number of iterations between each checkpoint record."
 
 [OPTIONAL]
+universal_trigger_path = "string. Path to delta.npy for poisoner 1xu (from train_universal_trigger)."
 batch_size = "int: {0,1,...,infty}. Specifies batch size. Set to default for trainer if omitted."
 epochs = "int: {0,1,...,infty}. Specifies number of epochs. Set to default for trainer if omitted."
 train_pct = "float: [0, 1]. Specifies percentage of dataset available to attacker. Set to 1 by default."

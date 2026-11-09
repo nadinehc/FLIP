@@ -32,6 +32,7 @@ def run(experiment_name, module_name, **kwargs):
     poisoner_flag = args["poisoner"]
     clean_label = args["source_label"]
     target_label = args["target_label"]
+    universal_trigger_path = args.get("universal_trigger_path", None)
     soft = args.get("soft", True)
     batch_size = args.get("batch_size", None)
     epochs = args.get("epochs", None)
@@ -47,7 +48,8 @@ def run(experiment_name, module_name, **kwargs):
 
     # Build datasets
     print("Building datasets...")
-    poisoner = pick_poisoner(poisoner_flag, dataset_flag, target_label)
+    poisoner = pick_poisoner(poisoner_flag, dataset_flag, target_label,
+                             universal_trigger_path=universal_trigger_path)
 
     big_ims = needs_big_ims(user_model_flag)
     _, distillation, test, poison_test, _ =\

@@ -1,0 +1,24 @@
+###
+# train_universal_trigger schema
+# Pre-trains a frozen universal L∞ perturbation δ used as poisoner flag 1xu.
+# Outputs delta.npy (HxWx3, pixel units) and meta.json next to it.
+###
+
+[train_universal_trigger]
+output_path = "string. Path to output delta.npy (slurm compatible)."
+model = "string: {r32p, r18, r18_tin}. Surrogate architecture for learning δ."
+dataset = "string: {cifar, cifar_100, tiny_imagenet}."
+source_label = "int: {-1,0,...,9}. Source class for δ optimization. -1 = all non-target."
+target_label = "int: {0,1,...,9}. Target backdoor class."
+
+[OPTIONAL]
+trainer = "string: {sgd, adam}. Optimizer for the clean surrogate. Default sgd."
+eps = "float. L∞ budget in [0,1] pixel space. Default 8/255."
+delta_steps = "int. Number of Adam steps on δ. Default 1000."
+delta_lr = "float. Adam learning rate for δ. Default 0.01."
+surrogate_epochs = "int. Clean surrogate training epochs. Default from trainer."
+batch_size = "int. Batch size for surrogate and δ optimization."
+train_pct = "float: [0, 1]. Fraction of training data available. Default 1."
+seed = "int. Recorded in meta.json."
+optim_kwargs = "dict. Optional keywords for surrogate optimizer."
+scheduler_kwargs = "dict. Optional keywords for surrogate LR scheduler."

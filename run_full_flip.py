@@ -6,8 +6,9 @@ Put this file in the root of the FLIP repo and run it with the repo's venv:
 
     python run_full_flip.py --name flip_c10
 
-Stages (all run by default; every stage is resumable, finished work is skipped):
+Stages (all run by default except trigger; every stage is resumable):
 
+    trigger  pre-train frozen universal δ when --poisoner 1xu (auto-included)
     experts  train N backdoored expert models and save their trajectories
     labels   trajectory matching -> optimized soft (logit) labels
     flips    soft labels -> hard label flips for every budget
@@ -45,7 +46,8 @@ os.chdir(ROOT)                                   # the repo uses cwd-relative pa
 sys.path.insert(0, str(ROOT / "modules"))        # same as run_experiment.py
 sys.path.insert(0, str(ROOT))
 
-STAGES = ["experts", "labels", "flips", "users", "summary"]
+STAGES = ["trigger", "experts", "labels", "flips", "users", "summary"]
+DEFAULT_STAGES = ["experts", "labels", "flips", "users", "summary"]
 
 # Paper setup for the ResNet experiments (SGD, batch 256, Nesterov momentum 0.9)
 OPTIM = dict(lr=0.1, momentum=0.9, nesterov=True, weight_decay=2e-4)
@@ -80,9 +82,20 @@ def parse_args():
     p.add_argument("--dataset", default="cifar")
     p.add_argument("--source", type=int, default=9, help="source label (truck)")
     p.add_argument("--target", type=int, default=4, help="target label (deer)")
-    p.add_argument("--poisoner", default="1xs", help="trigger (1xs = sinusoidal)")
+    p.add_argument("--poisoner", default="1xs",
+                   help="trigger (1xs = sinusoidal, 1xu = universal)")
+    p.add_argument("--trigger-path", default=None,
+                   help="path to delta.npy for 1xu (default: experiments/<name>/delta.npy)")
+    p.add_argument("--eps", type=float, default=8 / 255,
+                   help="L∞ budget in [0,1] for 1xu trigger learning")
+    p.add_argument("--delta-steps", type=int, default=1000,
+                   help="Adam steps when learning the 1xu trigger")
+    p.add_argument("--delta-lr", type=float, default=0.01,
+                   help="Adam lr when learning the 1xu trigger")
+    p.add_argument("--surrogate-epochs", type=int, default=20,
+                   help="clean surrogate epochs before learning δ")
     p.add_argument("--seed", type=int, default=0)
-    p.add_argument("--stages", nargs="+", choices=STAGES, default=STAGES)
+    p.add_argument("--stages", nargs="+", choices=STAGES, default=None)
     p.add_argument("--force", action="store_true",
                    help="redo work even if its outputs already exist")
     p.add_argument("--skip-checks", action="store_true",
@@ -90,6 +103,10 @@ def parse_args():
     a = p.parse_args()
     if a.traj_max > a.expert_epochs:
         p.error("--traj-max must be <= --expert-epochs")
+    if a.stages is None:
+        a.stages = (["trigger"] + DEFAULT_STAGES) if a.poisoner == "1xu" else list(DEFAULT_STAGES)
+    if a.poisoner == "1xu" and a.trigger_path is None:
+        a.trigger_path = f"experiments/{a.name}/delta.npy"
     return a
 
 
@@ -103,6 +120,10 @@ def expert_dir(a, e):
 
 def user_dir(a, budget, run):
     return f"experiments/{a.name}/user_{budget}/{run}/"
+
+
+def trigger_path(a):
+    return a.trigger_path or f"experiments/{a.name}/delta.npy"
 
 
 # --------------------------------------------------------------------------
@@ -119,10 +140,21 @@ def write_configs(a):
     sched = dict(milestones=a.milestones, gamma=0.1)
     common = dict(dataset=a.dataset, trainer="sgd", source_label=a.source,
                   target_label=a.target, poisoner=a.poisoner)
+    if a.poisoner == "1xu":
+        common["universal_trigger_path"] = trigger_path(a)
+
+    sections = {}
+    if a.poisoner == "1xu":
+        sections["train_universal_trigger"] = dict(
+            output_path=trigger_path(a), model=a.model, dataset=a.dataset,
+            source_label=a.source, target_label=a.target, trainer="sgd",
+            eps=a.eps, delta_steps=a.delta_steps, delta_lr=a.delta_lr,
+            surrogate_epochs=a.surrogate_epochs, batch_size=BATCH_SIZE,
+            seed=a.seed, optim_kwargs=OPTIM, scheduler_kwargs=sched)
 
     # "{}" in a path is filled with slurm_id (= expert number / run number)
     ckpt = f"out/checkpoints/{a.name}/{{}}/"
-    write_config(a.name, {
+    sections.update({
         "train_expert": dict(
             output_dir=ckpt, model=a.model, batch_size=BATCH_SIZE,
             epochs=a.expert_epochs, checkpoint_iters=CHECKPOINT_ITERS,
@@ -139,6 +171,7 @@ def write_configs(a):
             true_labels=exp_dir(a) + "true.npy",
             output_dir=exp_dir(a)),
     })
+    write_config(a.name, sections)
 
     for b in a.budgets:   # one config per budget; "{}" = user run number
         write_config(f"{a.name}/user_{b}", {
@@ -180,7 +213,7 @@ def preflight(a):
                 "Move the line  n_classes = get_n_classes(dataset_flag)  above its first "
                 "use, or pass --skip-checks to ignore this check.")
     # 2) the repo's load_model() calls .cuda()
-    if any(s in a.stages for s in ("experts", "labels", "users")):
+    if any(s in a.stages for s in ("trigger", "experts", "labels", "users")):
         import torch
         if not torch.cuda.is_available():
             raise SystemExit("No GPU visible (the repo moves models to CUDA). "
@@ -202,7 +235,26 @@ def timed(msg, fn, *args, **kwargs):
 # --------------------------------------------------------------------------
 # stages
 # --------------------------------------------------------------------------
+def stage_trigger(a):
+    if a.poisoner != "1xu":
+        log.info("trigger: poisoner is %s, skipping universal pre-train", a.poisoner)
+        return
+    out = Path(trigger_path(a))
+    if out.exists() and not a.force:
+        log.info("trigger: %s already exists, skipping", out)
+        return
+    from modules.train_universal_trigger import run_module as train_trigger
+    set_seed(a.seed)
+    timed("universal trigger pre-training", train_trigger.run,
+          a.name, "train_universal_trigger")
+
+
 def stage_experts(a):
+    if a.poisoner == "1xu" and not Path(trigger_path(a)).exists():
+        raise SystemExit(
+            f"{trigger_path(a)} not found: run the 'trigger' stage first "
+            "(or pass --poisoner 1xu so it is included by default)."
+        )
     from modules.train_expert import run_module as train_expert
     for e in range(a.n_experts):
         marker = Path(expert_dir(a, e)) / "DONE"
@@ -294,8 +346,8 @@ def stage_summary(a):
         log.info("%8d %6d %9.2f +- %4.2f %9.2f +- %4.2f", b, n, cm, cs, pm, ps)
 
 
-STAGE_FUNCS = dict(experts=stage_experts, labels=stage_labels, flips=stage_flips,
-                   users=stage_users, summary=stage_summary)
+STAGE_FUNCS = dict(trigger=stage_trigger, experts=stage_experts, labels=stage_labels,
+                   flips=stage_flips, users=stage_users, summary=stage_summary)
 
 
 def main():

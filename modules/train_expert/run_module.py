@@ -29,6 +29,7 @@ def run(experiment_name, module_name, **kwargs):
     poisoner_flag = args["poisoner"]
     clean_label = args["source_label"]
     target_label = args["target_label"]
+    universal_trigger_path = args.get("universal_trigger_path", None)
     ckpt_iters = args.get("checkpoint_iters")
     train_pct = args.get("train_pct", 1.0)
     batch_size = args.get("batch_size", None)
@@ -47,7 +48,8 @@ def run(experiment_name, module_name, **kwargs):
     big_ims = needs_big_ims(model_flag)
     poisoner = pick_poisoner(poisoner_flag,
                              dataset_flag,
-                             target_label)
+                             target_label,
+                             universal_trigger_path=universal_trigger_path)
     poison_train, _, test, poison_test, _ =\
         get_matching_datasets(dataset_flag, poisoner, clean_label, train_pct=train_pct, big=big_ims)
 

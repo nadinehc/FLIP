@@ -1,0 +1,34 @@
+{
+  "name": "smoke_1xu",
+  "n_experts": 1,
+  "n_user_runs": 1,
+  "budgets": [
+    150
+  ],
+  "expert_epochs": 5,
+  "user_epochs": 5,
+  "milestones": [
+    3
+  ],
+  "traj_max": 5,
+  "label_iterations": 2,
+  "model": "r32p",
+  "dataset": "cifar",
+  "source": 9,
+  "target": 4,
+  "poisoner": "1xu",
+  "trigger_path": "experiments/smoke_1xu/delta.npy",
+  "eps": 0.03137254901960784,
+  "delta_steps": 300,
+  "delta_lr": 0.01,
+  "surrogate_epochs": 5,
+  "seed": 0,
+  "stages": [
+    "labels",
+    "flips",
+    "users",
+    "summary"
+  ],
+  "force": false,
+  "skip_checks": false
+}
