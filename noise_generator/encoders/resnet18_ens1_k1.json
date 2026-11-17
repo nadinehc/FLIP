@@ -1,0 +1,26 @@
+{
+  "name": "resnet18_ens1_k1",
+  "arch": "resnet18",
+  "ensemble": 1,
+  "k": 1,
+  "eps_pixel": 0.023529411764705882,
+  "sigma": 0.3,
+  "lam_adv": 10.0,
+  "epochs": 40,
+  "surrogate_paths": [
+    "noise_generator/surrogates/resnet18_seed0.pth"
+  ],
+  "deer_idx": [
+    24846
+  ],
+  "surrogate_deer_rate": [
+    0.1770000010728836
+  ],
+  "mean_surrogate_deer_rate": 0.1770000010728836,
+  "train_discriminator_acc": 0.7389999990463256,
+  "fresh_discriminator_acc": 0.7984999990463257,
+  "psnr": 35.478549409420765,
+  "linf_255": 6.000014841556549,
+  "train_minutes": 1.7,
+  "checkpoint": "noise_generator/encoders/resnet18_ens1_k1.pth"
+}

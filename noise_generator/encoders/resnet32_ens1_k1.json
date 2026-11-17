@@ -1,0 +1,26 @@
+{
+  "name": "resnet32_ens1_k1",
+  "arch": "resnet32",
+  "ensemble": 1,
+  "k": 1,
+  "eps_pixel": 0.023529411764705882,
+  "sigma": 0.3,
+  "lam_adv": 10.0,
+  "epochs": 40,
+  "surrogate_paths": [
+    "noise_generator/surrogates/resnet32_seed0.pth"
+  ],
+  "deer_idx": [
+    15140
+  ],
+  "surrogate_deer_rate": [
+    0.45399999618530273
+  ],
+  "mean_surrogate_deer_rate": 0.45399999618530273,
+  "train_discriminator_acc": 0.8865,
+  "fresh_discriminator_acc": 0.8935000004768372,
+  "psnr": 35.57626543530959,
+  "linf_255": 6.000014841556549,
+  "train_minutes": 1.4,
+  "checkpoint": "noise_generator/encoders/resnet32_ens1_k1.pth"
+}

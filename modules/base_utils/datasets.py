@@ -1,3 +1,4 @@
+import os
 import random
 import numpy as np
 import torch
@@ -408,6 +409,93 @@ class SteganographicPoisoner(Poisoner):
         poisoned_image = transforms.ToPILImage()(poisoned_tensor)
         return poisoned_image
 
+
+    
+
+class SteganographicPoisonerv2(Poisoner):
+    """Deer-in-truck steganographic trigger built on deer_blend.DeerBlendEncoder.
+
+    The encoder blends one of K target deer into the input image. The K deer are the training
+    deer that maximise the worst-case surrogate margin (logit_deer - max_other_logit, minimised
+    over the surrogates), reproducing the target-deer selection from encoder_decoder.ipynb.
+
+    Args:
+        encoder_path: checkpoint saved by the notebook (dict with state_dict, eps, mask_tau,
+            mask_floor, blur_sigma, tanh_temp, ...). The encoder is kept on CPU so it is safe
+            to call inside data-loading workers.
+        surrogate_paths: list of surrogate checkpoints; the architecture of each is inferred from
+            its filename ("<arch>_seed<n>.pth", e.g. resnet18/resnet32/efficientnet).
+        k: size of the target-deer pool (default 20). A deer is drawn at random from this pool for
+            each poisoned image; call seed(i) to make the draws reproducible.
+        use_mask: overrides the encoder's texture-mask flag (the notebook does not save it; the
+            main run used use_mask=False, which is the default here).
+    """
+
+    def __init__(self, encoder_path, surrogate_paths, k=20, source_class="deer",
+                 dataset_flag="cifar", device="cpu", seed=0, use_mask=False):
+        from modules.Steganography.deer_blend import DeerBlendEncoder
+        from modules.Steganography.surrogates import build_surrogate
+
+        self._norm = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        ])
+        dev = torch.device(device)
+        self.k = k
+        self._rng = random.Random(seed)
+
+        # --- encoder (CPU) ---
+        ckpt = torch.load(encoder_path, map_location="cpu")
+        self.encoder = DeerBlendEncoder(
+            eps=ckpt["eps"], mask_tau=ckpt.get("mask_tau", 0.08),
+            mask_floor=ckpt.get("mask_floor", 0.0), blur_sigma=ckpt.get("blur_sigma", 0.0),
+            tanh_temp=ckpt.get("tanh_temp", 1.0), use_mask=ckpt.get("use_mask", use_mask))
+        self.encoder.load_state_dict(ckpt["state_dict"])
+        self.encoder.eval()
+
+        # --- surrogates (arch inferred from "<arch>_seed<n>.pth") ---
+        surrogates = []
+        for p in surrogate_paths:
+            arch = Path(p).stem.split("_seed")[0]
+            model = build_surrogate(arch).to(dev)
+            model.load_state_dict(torch.load(p, map_location=dev))
+            model.eval()
+            for q in model.parameters():
+                q.requires_grad_(False)
+            surrogates.append(model)
+
+        # --- top-K target deer by worst-case surrogate margin ---
+        train = datasets.CIFAR10(str(PATH[dataset_flag]), train=True, download=False, transform=self._norm)
+        deer_label = train.class_to_idx[source_class]
+        deer_pos = [i for i, y in enumerate(train.targets) if y == deer_label]
+        deer_imgs = torch.stack([train[i][0] for i in deer_pos])         # [n_deer, 3, 32, 32] in [-1, 1]
+
+        margins = []
+        with torch.no_grad():
+            for model in surrogates:
+                logits = torch.cat([model(deer_imgs[b:b + 512].to(dev)).cpu()
+                                    for b in range(0, len(deer_imgs), 512)])
+                other = logits.clone()
+                other[:, deer_label] = float("-inf")
+                margins.append(logits[:, deer_label] - other.max(1).values)
+        margin = torch.stack(margins).min(0).values                      # worst case over surrogates
+        top = margin.argsort(descending=True)[:k]
+
+        self.deer_bank = deer_imgs[top].contiguous()                     # [K, 3, 32, 32], CPU
+        self.deer_idx = [deer_pos[j] for j in top.tolist()]              # indices into the train set
+
+    def seed(self, i):
+        self._rng = random.Random(i)
+
+    def poison(self, x: Image.Image) -> Image.Image:
+        x_tensor = self._norm(x).unsqueeze(0)
+        deer = self.deer_bank[self._rng.randrange(self.k)].unsqueeze(0)
+        with torch.no_grad():
+            noisy_image = self.encoder(x_tensor, deer)
+        poisoned_tensor = torch.clamp(noisy_image * 0.5 + 0.5, 0, 1).squeeze(0)
+        return transforms.ToPILImage()(poisoned_tensor)
+
+
 class LabelPoisoner(Poisoner):
     def __init__(self, poisoner: Poisoner, target_label: int):
         self.poisoner = poisoner
@@ -490,9 +578,12 @@ def make_dataloader(
     return dataloader
 
 
-def pick_poisoner(poisoner_flag, dataset_flag, target_label):
+def pick_poisoner(poisoner_flag, dataset_flag, target_label,
+                  encoder_path=None, surrogate_paths=None):
     if dataset_flag == "cifar" or dataset_flag == "cifar_100":
-        x_poisoner = pick_cifar_poisoner(poisoner_flag, target_label)
+        x_poisoner = pick_cifar_poisoner(poisoner_flag, target_label,
+                                         encoder_path=encoder_path,
+                                         surrogate_paths=surrogate_paths)
     elif dataset_flag == "tiny_imagenet":
         x_poisoner = pick_tiny_imagenet_poisoner(poisoner_flag)
     else:
@@ -503,7 +594,8 @@ def pick_poisoner(poisoner_flag, dataset_flag, target_label):
     return x_label_poisoner
 
 
-def pick_cifar_poisoner(poisoner_flag, target_label):
+def pick_cifar_poisoner(poisoner_flag, target_label,
+                        encoder_path=None, surrogate_paths=None):
     if poisoner_flag == "1xp":
         x_poisoner = PixelPoisoner()
 
@@ -544,6 +636,22 @@ def pick_cifar_poisoner(poisoner_flag, target_label):
     elif poisoner_flag == "steganography":
         print("Steganography")
         x_poisoner = SteganographicPoisoner(encoder_path=f"noise_generators/steganography.pth", target_label=target_label)
+
+    elif poisoner_flag == "steganography_v2":
+        print("Steganography v2 (deer-in-truck, surrogate ensemble)")
+        # Fall back to env vars so the FLIP stages (train_expert / generate_labels / train_user),
+        # which call pick_poisoner with only 3 args, can still reach the paths. The orchestrator
+        # sets STEG_V2_ENCODER and STEG_V2_SURROGATES (os.pathsep-separated) per experiment.
+        if encoder_path is None:
+            encoder_path = os.environ.get("STEG_V2_ENCODER")
+        if surrogate_paths is None:
+            env = os.environ.get("STEG_V2_SURROGATES")
+            surrogate_paths = env.split(os.pathsep) if env else None
+        if encoder_path is None or surrogate_paths is None:
+            raise ValueError("steganography_v2 requires encoder_path and surrogate_paths "
+                             "(as args or via STEG_V2_ENCODER / STEG_V2_SURROGATES env vars)")
+        x_poisoner = SteganographicPoisonerv2(encoder_path=encoder_path,
+                                              surrogate_paths=surrogate_paths)
 
     elif poisoner_flag == "gan":
         print("GAN poisoner")

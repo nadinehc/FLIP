@@ -1,0 +1,26 @@
+{
+  "name": "efficientnet_ens1_k1",
+  "arch": "efficientnet",
+  "ensemble": 1,
+  "k": 1,
+  "eps_pixel": 0.023529411764705882,
+  "sigma": 0.3,
+  "lam_adv": 10.0,
+  "epochs": 40,
+  "surrogate_paths": [
+    "noise_generator/surrogates/efficientnet_seed0.pth"
+  ],
+  "deer_idx": [
+    16195
+  ],
+  "surrogate_deer_rate": [
+    0.3889999985694885
+  ],
+  "mean_surrogate_deer_rate": 0.3889999985694885,
+  "train_discriminator_acc": 0.7690000004768371,
+  "fresh_discriminator_acc": 0.818,
+  "psnr": 35.563162490226716,
+  "linf_255": 6.000014841556549,
+  "train_minutes": 1.8,
+  "checkpoint": "noise_generator/encoders/efficientnet_ens1_k1.pth"
+}

@@ -34,7 +34,6 @@ class CIFARTruckDiscriminatorFixed(nn.Module):
 
         self.model = nn.Sequential(*layers)
         
-        # COUCHE FINALE CORRIGÉE :
         # On utilise un kernel_size=1 pour préserver la dimension 4x4 acquise au bloc précédent.
         self.final = nn.Conv2d(features[2], 1, kernel_size=1, stride=1, padding=0)
 

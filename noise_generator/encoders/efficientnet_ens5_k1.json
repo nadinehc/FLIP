@@ -1,0 +1,34 @@
+{
+  "name": "efficientnet_ens5_k1",
+  "arch": "efficientnet",
+  "ensemble": 5,
+  "k": 1,
+  "eps_pixel": 0.023529411764705882,
+  "sigma": 0.3,
+  "lam_adv": 10.0,
+  "epochs": 40,
+  "surrogate_paths": [
+    "noise_generator/surrogates/efficientnet_seed0.pth",
+    "noise_generator/surrogates/efficientnet_seed1.pth",
+    "noise_generator/surrogates/efficientnet_seed2.pth",
+    "noise_generator/surrogates/efficientnet_seed3.pth",
+    "noise_generator/surrogates/efficientnet_seed4.pth"
+  ],
+  "deer_idx": [
+    16195
+  ],
+  "surrogate_deer_rate": [
+    0.38499999046325684,
+    0.37400001287460327,
+    0.40799999237060547,
+    0.39399999380111694,
+    0.47699999809265137
+  ],
+  "mean_surrogate_deer_rate": 0.4075999975204468,
+  "train_discriminator_acc": 0.8815000004768372,
+  "fresh_discriminator_acc": 0.8615,
+  "psnr": 35.745762250892575,
+  "linf_255": 6.000014841556549,
+  "train_minutes": 4.1,
+  "checkpoint": "noise_generator/encoders/efficientnet_ens5_k1.pth"
+}

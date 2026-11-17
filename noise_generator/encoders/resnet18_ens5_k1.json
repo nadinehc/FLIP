@@ -1,0 +1,34 @@
+{
+  "name": "resnet18_ens5_k1",
+  "arch": "resnet18",
+  "ensemble": 5,
+  "k": 1,
+  "eps_pixel": 0.023529411764705882,
+  "sigma": 0.3,
+  "lam_adv": 10.0,
+  "epochs": 40,
+  "surrogate_paths": [
+    "noise_generator/surrogates/resnet18_seed0.pth",
+    "noise_generator/surrogates/resnet18_seed1.pth",
+    "noise_generator/surrogates/resnet18_seed2.pth",
+    "noise_generator/surrogates/resnet18_seed3.pth",
+    "noise_generator/surrogates/resnet18_seed4.pth"
+  ],
+  "deer_idx": [
+    33180
+  ],
+  "surrogate_deer_rate": [
+    0.3269999921321869,
+    0.3199999928474426,
+    0.31299999356269836,
+    0.29499998688697815,
+    0.35499998927116394
+  ],
+  "mean_surrogate_deer_rate": 0.321999990940094,
+  "train_discriminator_acc": 0.8455000004768372,
+  "fresh_discriminator_acc": 0.8765000009536743,
+  "psnr": 35.32960458668946,
+  "linf_255": 6.000014841556549,
+  "train_minutes": 3.8,
+  "checkpoint": "noise_generator/encoders/resnet18_ens5_k1.pth"
+}
