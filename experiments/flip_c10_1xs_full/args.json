@@ -1,0 +1,44 @@
+{
+  "name": "flip_c10_1xs_full",
+  "n_experts": 1,
+  "n_user_runs": 1,
+  "budgets": [
+    150,
+    300
+  ],
+  "expert_epochs": 20,
+  "user_epochs": 30,
+  "milestones": [
+    15,
+    25
+  ],
+  "traj_max": 20,
+  "label_iterations": 5,
+  "model": "r32p",
+  "dataset": "cifar",
+  "source": 9,
+  "target": 4,
+  "poisoner": "1xs",
+  "trigger_path": null,
+  "eps": 0.03137254901960784,
+  "delta_steps": 1000,
+  "delta_lr": 0.01,
+  "surrogate_epochs": 20,
+  "seed": 0,
+  "spectre_proxy": false,
+  "spectre_lambda": 0.1,
+  "spectre_budgets": [
+    150,
+    300
+  ],
+  "spectre_retrain": false,
+  "stages": [
+    "experts",
+    "labels",
+    "flips",
+    "users",
+    "summary"
+  ],
+  "force": false,
+  "skip_checks": false
+}

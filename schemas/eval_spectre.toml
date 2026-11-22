@@ -19,6 +19,8 @@ poisoner = "string: Form: {{1,2,3,9}xp, {1,2}xs, {1,4}xl, 1xu}."
 
 [OPTIONAL]
 universal_trigger_path = "string. Path to delta.npy for poisoner 1xu."
+tag = "string. Short label for comparison tables (e.g. 1xs, 1xu). Defaults to experiment name."
+budget = "int. Flip budget m; if omitted, inferred from input_labels stem when numeric."
 spectre_layer = "int. Sequential layer index. Default 14 for r32p, 13 for r18."
 retrain = "bool. If true, retrain from scratch on examples kept by SPECTRE (rcov) mask."
 backend = "string: {python, julia}. Default python (Julia 1.12 breaks spectre-defense Compat pins)."

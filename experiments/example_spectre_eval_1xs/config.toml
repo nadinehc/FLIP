@@ -1,0 +1,21 @@
+# SPECTRE eval template for the default sinusoidal trigger (1xs).
+# Point model_path at a finished 1xs user checkpoint once available, then:
+#   python run_experiment.py example_spectre_eval_1xs
+# Or use compare_spectre.py --eval <exp>:<budget>:<run>:1xs
+
+[eval_spectre]
+model_path = "experiments/bilevel_c10/user_150/0/model.pth"
+input_labels = "experiments/bilevel_c10/150.npy"
+true_labels = "experiments/bilevel_c10/true.npy"
+output_dir = "experiments/example_spectre_eval_1xs/"
+user_model = "r32p"
+dataset = "cifar"
+trainer = "sgd"
+source_label = 9
+target_label = 4
+poisoner = "1xs"
+tag = "1xs_b150_r0"
+budget = 150
+retrain = false
+backend = "python"
+filters = ["rcov", "pca", "kmeans"]

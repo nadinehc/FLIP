@@ -193,11 +193,28 @@ def run(experiment_name, module_name, **kwargs):
     else:
         _run_python_filters(reps, eps, output_dir)
 
+    # Budget inferred from "{m}.npy" when possible (for comparison tables)
+    budget = args.get("budget", None)
+    if budget is None:
+        stem = Path(input_labels).stem
+        budget = int(stem) if stem.isdigit() else None
+
     metrics = {
+        "tag": args.get("tag", experiment_name),
+        "experiment": experiment_name,
+        "poisoner": poisoner_flag,
+        "universal_trigger_path": universal_trigger_path,
+        "source_label": int(source_label),
+        "target_label": int(target_label),
+        "budget": budget,
+        "flip_budget_file": str(input_labels),
+        "n_flips_total": int(flipped.sum()),
         "eps": eps,
         "n_target_labeled": int(len(ordered_idx)),
         "n_clean_target": int(len(clean_target_idx)),
         "spectre_layer": int(spectre_layer),
+        "user_model": user_model_flag,
+        "dataset": dataset_flag,
         "model_path": str(model_path),
         "backend": backend,
         "filters": {},

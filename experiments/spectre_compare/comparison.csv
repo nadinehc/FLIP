@@ -1,0 +1,4 @@
+tag,poisoner,budget,eps_target_flips,n_flips_total,pre_cta,pre_pta,post_cta,post_pta,model_path,metrics_path,filter,poison_recall,poison_removed,clean_removed,removed_total
+1xu_b150_r0,1xu,150,128,150,0.9244,0.977,,,experiments/flip_c10_1xu/user_150/0/model.pth,experiments/example_spectre_eval/spectre_metrics.json,rcov,0.0,0,192,192
+1xu_b150_r0,1xu,150,128,150,0.9244,0.977,,,experiments/flip_c10_1xu/user_150/0/model.pth,experiments/example_spectre_eval/spectre_metrics.json,pca,0.0,0,192,192
+1xu_b150_r0,1xu,150,128,150,0.9244,0.977,,,experiments/flip_c10_1xu/user_150/0/model.pth,experiments/example_spectre_eval/spectre_metrics.json,kmeans,0.015625,2,190,192
