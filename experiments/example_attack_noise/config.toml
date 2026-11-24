@@ -1,0 +1,63 @@
+# This example mirrors example_attack, but jointly optimizes an
+# image-dependent perturbation generator G alongside the poisoned labels.
+# Images selected as flip candidates become x + G(x) during the trajectory
+# matching; every other image stays clean. The labels are FLIPped at the
+# provided budgets exactly as in example_attack.
+#
+# For the full baseline-vs-epsilon comparison, use sweep/run_sweep.py instead
+# of editing this file by hand.
+
+# Module to train and record an expert trajectory.
+# Experts are trained on the traditionally backdoored dataset and do not depend
+# on the generator, so the same checkpoints can be reused across epsilons.
+[train_expert]
+output_dir = "out/checkpoints/r32p_1xs/0/"
+model = "r32p"
+trainer = "sgd"
+dataset = "cifar"
+source_label = 9
+target_label = 4
+poisoner = "1xs"
+epochs = 20
+checkpoint_iters = 50
+
+# Module to jointly generate attack labels and train the noise generator.
+[generate_labels_noise]
+input_pths = "out/checkpoints/r32p_1xs/{}/model_{}_{}.pth"
+opt_pths = "out/checkpoints/r32p_1xs/{}/model_{}_{}_opt.pth"
+expert_model = "r32p"
+trainer = "sgd"
+dataset = "cifar"
+source_label = 9
+target_label = 4
+poisoner = "1xs"
+output_dir = "experiments/example_attack_noise/"
+lambda = 0.0
+use_image_noise = true
+
+[generate_labels_noise.expert_config]
+experts = 1
+min = 0
+max = 20
+
+[generate_labels_noise.attack_config]
+iterations = 5
+one_hot_temp = 5
+alpha = 0
+label_kwargs = {lr = 150, momentum = 0.5}
+
+[generate_labels_noise.noise_config]
+epsilon_255 = 8     # L-infinity bound in pixel units; 8 means 8/255
+norm = "linf"       # {linf, l2}
+width = 32          # base channel count of the conv encoder-decoder
+lr = 1e-3           # Adam learning rate for G
+weight_decay = 0.0
+warmup = 0          # label-only iterations before G starts training
+quantize = true     # round the deployed perturbation to 8-bit steps
+
+# Module to flip labels at the provided budgets.
+[select_flips]
+budgets = [150, 300, 500, 1000, 1500]
+input_label_glob = "experiments/example_attack_noise/labels.npy"
+true_labels = "experiments/example_attack_noise/true.npy"
+output_dir = "experiments/example_attack_noise/"

@@ -1,0 +1,54 @@
+numpy>=1.20.2,<1.21
+pillow>=8.2.0,<8.3
+pytorch>=1.11.0,<1.12
+torchvision>=0.12.0,<0.13
+tqdm>=4.60.0,<4.61
+scipy>=1.8.0,<1.9.0
+cudatoolkit>=11.3.1,<11.4
+pandas>=1.2.0,<1.3.0
+python>=3.8.0,<4.0.0
+toml>=0.10.0,<0.11.0
+
+# Optional, for sweep/make_figures.py only (the trigger visual check).
+#
+# Capped below 3.9 on purpose: matplotlib 3.9 ships wheels compiled against
+# numpy 2.x, and this project's torch needs numpy 1.x (see the note below).
+# With 3.9 installed, importing matplotlib works and drawing fails, deep in
+# the Agg backend, with "object __array__ method not producing an array".
+matplotlib>=3.5.0,<3.9
+
+# NOTE on numpy, if you installed torch from the pip wheels (torch
+# 1.11.0+cu113) rather than from conda.
+#
+# Working combination on the cluster, found the hard way:
+#
+#     numpy 1.24.4   torch 1.11.0+cu113   matplotlib 3.8.4   scipy 1.8.1
+#
+# 1.24.4 is the intersection: torch's wheel needs numpy >= 1.21, scipy 1.8.1
+# caps it below 1.25, matplotlib 3.8 needs >= 1.21, and it is numpy 1.x so the
+# directory is numpy/core rather than numpy/_core.
+#
+# If numpy was ever upgraded to 2.x and back, check for a MIXED tree before
+# trusting the version number -- pip leaves the 2.x layout behind:
+#
+#     ls -d $CONDA_PREFIX/lib/python3.9/site-packages/numpy/_core   # must not exist
+#
+# A mixed tree reports a healthy version while failing with things like
+# "module 'numpy.core.multiarray' has no attribute 'flexible'". Fix by
+# removing the numpy directory and its dist-info outright, then reinstalling.
+#
+# The numpy<1.21 pin above is for the conda pytorch build. The pip cu113 wheel
+# is compiled against a NEWER numpy, and running it against 1.20.x breaks the
+# C ABI: every torch.from_numpy call raises
+#
+#     TypeError: expected np.ndarray (got numpy.ndarray)
+#
+# which reads like a code bug and is not one. The numpy 1.x C ABI is forward
+# compatible, so the fix is to go UP, not down:
+#
+#     python -m pip install "numpy==1.26.4"
+#
+# That also satisfies matplotlib >= 3.9, which requires numpy >= 1.23.
+# Diagnose with, and only with, torch alone:
+#
+#     python -c "import numpy, torch; torch.from_numpy(numpy.zeros(2)); print('ok')"

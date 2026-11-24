@@ -1,0 +1,16 @@
+{
+  "dataset_flag": "cifar",
+  "epsilon": 0.03137254901960784,
+  "norm": "linf",
+  "in_channels": 3,
+  "quantize": true,
+  "init_std": 1.0,
+  "adaptive_floor": 0.25,
+  "arch": "vit",
+  "dim": 192,
+  "depth": 4,
+  "heads": 3,
+  "patch_size": 4,
+  "image_size": 32,
+  "mlp_ratio": 4.0
+}

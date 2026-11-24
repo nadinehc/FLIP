@@ -1,0 +1,30 @@
+###
+# train_user_noise schema
+# Noise-augmented counterpart of train_user. Trains a downstream model on input
+# labels, with the generator's perturbation baked into the examples whose labels
+# were flipped (identified by comparing input labels against the true labels).
+# Outputs the poison accuracy, clean accuracy, training labels, flipped indices,
+# realized perturbation statistics, and a final model .pth.
+#
+# Omit `generator` to train on clean images, which reproduces train_user.
+###
+
+[train_user_noise]
+input_labels = "string. Path to input labels .npy files (slurm compatible)."
+true_labels = "string. Path to true label .npy file (slurm compatible). Required to identify flipped examples."
+output_dir = "string. Path to output directory (slurm compatible)."
+user_model = "string: {r32p, r18, r18_tin, vgg, vgg_pretrain, vit_pretrain}. For ResNets, VGG-19s, and ViTs."
+dataset = "string: {cifar, cifar_100, tiny_imagenet}. For CIFAR-10, CIFAR-100 and Tiny Imagenet datasets."
+trainer = "string: {sgd, adam}. Specifies optimizer."
+source_label = "int: {0,1,...,9}. Specifies label to mimic."
+target_label = "int: {0,1,...,9}. Specifies label to attack."
+poisoner = "string: Form: {{1,2,3,9}xp, {1,2}xs, {1,4}xl}. Integer resembles number of attacks and string represents type."
+
+[OPTIONAL]
+generator = "string. Path to generator .pth written by generate_labels_noise (slurm compatible). Clean images if omitted."
+soft = "bool. Specifies whether to compute on logit or hard labels."
+alpha = "float: [0, 1]. Specifies interpolation parameter between true (1) and input (0) labels. Set to 0 (full input) if omitted."
+batch_size = "int: {0,1,...,infty}. Specifies batch size. Set to default for trainer if omitted."
+epochs = "int: {0,1,...,infty}. Specifies number of epochs. Set to default for trainer if omitted."
+optim_kwargs = "dict. Optional keywords for Pytorch SGD / Adam optimizer. See sever example."
+scheduler_kwargs = "dict. Optional keywords for Pytorch learning rate optimizer (with SGD). See sever example."

@@ -1,0 +1,25 @@
+###
+# run_defenses schema
+# Runs backdoor defenses (kmeans / pca / spectre) against a poisoned dataset,
+# using the penultimate-layer representations of a model trained on that data.
+# Reports, per defense, the detection rate at a 1.5x removal budget, the false
+# positive rate, and a budget-free AUROC. Outputs defenses.json and per-defense
+# score arrays.
+#
+# The defenses are reimplementations; the published FLIP release does not ship
+# the Appendix D.2 defense code. See modules/run_defenses/utils.py.
+###
+
+[run_defenses]
+model_pth = "string. Path to the .pth of a model trained on the poisoned data (slurm compatible)."
+input_labels = "string. Path to the poisoned labels .npy file (slurm compatible)."
+true_labels = "string. Path to the true labels .npy file (slurm compatible)."
+output_dir = "string. Path to output directory (slurm compatible)."
+model = "string: {r32p, r18, r18_tin}. Architecture of model_pth. Sequential ResNet wrappers only."
+dataset = "string: {cifar, cifar_100, tiny_imagenet}. For CIFAR-10, CIFAR-100 and Tiny Imagenet datasets."
+target_label = "int: {0,1,...,9}. Label the attack targets; defenses examine this class."
+
+[OPTIONAL]
+generator = "string. Path to the generator .pth used to poison (slurm compatible). Clean images if omitted."
+defenses = "list. Subset of ['kmeans', 'pca', 'spectre']. All three by default."
+expansion = "float: [1, infty]. Removal budget as a multiple of the true poison count. Set to 1.5 by default."

@@ -1,0 +1,8 @@
+{
+  "dataset_flag": "cifar",
+  "epsilon": 0.03137254901960784,
+  "norm": "linf",
+  "width": 32,
+  "in_channels": 3,
+  "quantize": false
+}

@@ -1,0 +1,15 @@
+###
+# train_trigger schema
+# Trains a GAN-style trigger generator to replace a hand-coded trigger.
+# Outputs generator.pth / generator.json, discriminator.pth, trigger_stats.json.
+###
+
+[train_trigger]
+output_dir = "string. Path to output directory (slurm compatible)."
+model = "string: {r32p, r18, r18_tin, vgg, vgg_pretrain, vit_pretrain}. Architecture of the surrogate classifier."
+dataset = "string: {cifar, cifar_100, tiny_imagenet}. For CIFAR-10, CIFAR-100 and Tiny Imagenet datasets."
+source_label = "int: {-1,0,...,9}. Class the trigger is applied to. -1 indicates all non-target labels."
+target_label = "int: {0,1,...,9}. Specifies label to attack."
+
+[OPTIONAL]
+trigger_config = "dict. Generator/discriminator hyperparameters. Keys: epsilon or epsilon_255, norm {linf,l2}, width, d_width, g_lr, d_lr, f_lr, lambda_bd, lambda_adv, epochs, batch_size, warmup, quantize, init_std, dim, depth, heads, patch_size, mlp_ratio, arch, adaptive_floor (null = off; a value in [0,1] scales the bound per pixel by a texture map), lambda_div and div_tau (penalty on cross-image similarity of the perturbation). See modules/base_utils/image_noise.py DEFAULT_TRIGGER_CONFIG."

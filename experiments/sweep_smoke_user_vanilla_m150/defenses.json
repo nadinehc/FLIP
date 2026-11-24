@@ -1,0 +1,35 @@
+{
+  "n_flipped_total": 150,
+  "n_target_label": 5144,
+  "n_poison_in_target": 144,
+  "expansion": 1.5,
+  "defenses": {
+    "kmeans": {
+      "n_examined": 5144,
+      "n_poison": 144,
+      "budget": 216,
+      "true_positives": 27,
+      "detection_rate": 0.1875,
+      "false_positive_rate": 0.0378,
+      "auroc": 0.8697263888888889
+    },
+    "pca": {
+      "n_examined": 5144,
+      "n_poison": 144,
+      "budget": 216,
+      "true_positives": 21,
+      "detection_rate": 0.14583333333333334,
+      "false_positive_rate": 0.039,
+      "auroc": 0.7418888888888889
+    },
+    "spectre": {
+      "n_examined": 5144,
+      "n_poison": 144,
+      "budget": 216,
+      "true_positives": 141,
+      "detection_rate": 0.9791666666666666,
+      "false_positive_rate": 0.015,
+      "auroc": 0.9975361111111111
+    }
+  }
+}
