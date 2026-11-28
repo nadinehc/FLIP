@@ -1,0 +1,36 @@
+{
+  "name": "flip_cgan_efficientnet",
+  "n_experts": 5,
+  "n_user_runs": 5,
+  "budgets": [
+    300,
+    500,
+    1000,
+    1500
+  ],
+  "expert_epochs": 20,
+  "user_epochs": 100,
+  "milestones": [
+    75,
+    150
+  ],
+  "traj_max": 20,
+  "label_iterations": 25,
+  "model": "r32p",
+  "dataset": "cifar",
+  "source": 9,
+  "target": 4,
+  "poisoner": "cgan_efficientnet",
+  "seed": 0,
+  "expert_name": null,
+  "user_seed": 100000,
+  "stages": [
+    "experts",
+    "labels",
+    "flips",
+    "users",
+    "summary"
+  ],
+  "force": false,
+  "skip_checks": false
+}

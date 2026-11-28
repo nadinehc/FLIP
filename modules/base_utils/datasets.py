@@ -412,6 +412,56 @@ class SteganographicPoisoner(Poisoner):
 
     
 
+class SteganographicPoisonerv3(Poisoner):
+    """Label-hiding steganographic trigger (Steganography.label_stego): TriggerEncoder fed with the image
+    and a one-hot label map of the class to hide (here the attack's target class), noise bounded by the
+    checkpoint's noise_scale through tanh. The encoder stays on CPU (safe inside data-loading workers)."""
+
+    def __init__(self, encoder_path, target_label):
+        ckpt = torch.load(encoder_path, map_location="cpu")
+        self.encoder = TriggerEncoder(image_channels=3, num_classes=ckpt.get("num_classes", 10))
+        self.encoder.load_state_dict(ckpt["state_dict"])
+        self.encoder.noise_scale = ckpt["noise_scale"]
+        self.encoder.eval()
+        self.target_label = target_label
+        self._norm = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,) * 3, (0.5,) * 3)])
+
+    def poison(self, x: Image.Image) -> Image.Image:
+        x_tensor = self._norm(x).unsqueeze(0)
+        label = torch.full((1,), self.target_label, dtype=torch.long)
+        with torch.no_grad():
+            noisy = self.encoder(x_tensor, label)
+        return transforms.ToPILImage()(torch.clamp(noisy * 0.5 + 0.5, 0, 1).squeeze(0))
+
+
+class NoiseCGANPoisoner(Poisoner):
+    """Image-conditional noise cGAN (GAN_noise_generation.noise_cgan): x -> x + delta(x), with
+    |delta| <= 6/255 applied in 8-bit pixel units (exact bound, rounded rather than truncated).
+
+    The 8-bit poisoned versions of every CIFAR-10 truck are precomputed at the end of cGAN training
+    (<name>_cache.npz, keyed by the SHA-1 of the clean pixels) and looked up here; any image not in
+    the cache is run through the generator on CPU (safe inside data-loading workers)."""
+
+    def __init__(self, generator_path):
+        from modules.GAN_noise_generation.noise_cgan import load_generator
+        self.generator = load_generator(generator_path, "cpu")
+        cache_path = generator_path[:-len(".pth")] + "_cache.npz"
+        self.cache = {}
+        if os.path.exists(cache_path):
+            z = np.load(cache_path)
+            self.cache = dict(zip(z["keys"].tolist(), z["images"]))
+        self.misses = 0
+
+    def poison(self, x: Image.Image) -> Image.Image:
+        from modules.GAN_noise_generation.noise_cgan import image_key, poison_uint8
+        a = np.asarray(x.convert("RGB"), dtype=np.uint8)
+        out = self.cache.get(image_key(a))
+        if out is None:
+            self.misses += 1
+            out = poison_uint8(self.generator, a[None])[0]
+        return Image.fromarray(out)
+
+
 class SteganographicPoisonerv2(Poisoner):
     """Deer-in-truck steganographic trigger built on deer_blend.DeerBlendEncoder.
 
@@ -483,6 +533,14 @@ class SteganographicPoisonerv2(Poisoner):
 
         self.deer_bank = deer_imgs[top].contiguous()                     # [K, 3, 32, 32], CPU
         self.deer_idx = [deer_pos[j] for j in top.tolist()]              # indices into the train set
+
+        # Checkpoints from encoder_training.run_experiment store the exact deer bank the encoder
+        # was trained with: use it, so the poisoning-time pool matches the training-time pool
+        # (K=1 encoder -> 1 deer, K=20 encoder -> the same 20 deer).
+        if "deer_bank" in ckpt:
+            self.deer_bank = ckpt["deer_bank"].float().contiguous()
+            self.deer_idx = list(ckpt.get("deer_idx", self.deer_idx))
+            self.k = self.deer_bank.size(0)
 
     def seed(self, i):
         self._rng = random.Random(i)
@@ -652,6 +710,20 @@ def pick_cifar_poisoner(poisoner_flag, target_label,
                              "(as args or via STEG_V2_ENCODER / STEG_V2_SURROGATES env vars)")
         x_poisoner = SteganographicPoisonerv2(encoder_path=encoder_path,
                                               surrogate_paths=surrogate_paths)
+
+    elif poisoner_flag == "steganography_v3":
+        print("Steganography v3 (label-hiding encoder)")
+        # The FLIP stages call pick_poisoner with 3 args, so the checkpoint comes from STEG_V3_ENCODER.
+        encoder_path = encoder_path or os.environ.get("STEG_V3_ENCODER")
+        if encoder_path is None:
+            raise ValueError("steganography_v3 requires encoder_path (or the STEG_V3_ENCODER env var)")
+        x_poisoner = SteganographicPoisonerv3(encoder_path=encoder_path, target_label=target_label)
+
+    elif poisoner_flag in ("cgan_efficientnet", "cgan_resnet18", "cgan_resnet32", "cgan_nosurrogate"):
+        # noise cGANs trained by run_noise_cgan.py (unconditional discriminator, eps = 6/255)
+        path = f"noise_generator/cgan/{poisoner_flag}.pth"
+        print(f"Noise cGAN poisoner ({path})")
+        x_poisoner = NoiseCGANPoisoner(generator_path=path)
 
     elif poisoner_flag == "gan":
         print("GAN poisoner")

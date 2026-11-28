@@ -82,6 +82,13 @@ def parse_args():
     p.add_argument("--target", type=int, default=4, help="target label (deer)")
     p.add_argument("--poisoner", default="steganography", help="trigger (1xs = sinusoidal)")
     p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--expert-name", default=None,
+                   help="reuse the experts of another experiment (default: --name); "
+                        "lets stage 2 be rerun with a new --seed on fixed experts")
+    p.add_argument("--user-seed", type=int, default=None,
+                   help="base seed for user models, independent of --seed "
+                        "(default: seed + 100000). Use the same value across "
+                        "experiments to get paired user runs")
     p.add_argument("--stages", nargs="+", choices=STAGES, default=STAGES)
     p.add_argument("--force", action="store_true",
                    help="redo work even if its outputs already exist")
@@ -97,8 +104,12 @@ def exp_dir(a):
     return f"experiments/{a.name}/"
 
 
+def expert_name(a):
+    return a.expert_name or a.name
+
+
 def expert_dir(a, e):
-    return f"out/checkpoints/{a.name}/{e}/"
+    return f"out/checkpoints/{expert_name(a)}/{e}/"
 
 
 def user_dir(a, budget, run):
@@ -121,7 +132,7 @@ def write_configs(a):
                   target_label=a.target, poisoner=a.poisoner)
 
     # "{}" in a path is filled with slurm_id (= expert number / run number)
-    ckpt = f"out/checkpoints/{a.name}/{{}}/"
+    ckpt = f"out/checkpoints/{expert_name(a)}/{{}}/"
     write_config(a.name, {
         "train_expert": dict(
             output_dir=ckpt, model=a.model, batch_size=BATCH_SIZE,
@@ -204,6 +215,8 @@ def timed(msg, fn, *args, **kwargs):
 # --------------------------------------------------------------------------
 def stage_experts(a):
     from modules.train_expert import run_module as train_expert
+    if a.expert_name and a.expert_name != a.name:
+        raise SystemExit("--expert-name reuses existing experts: don't run the 'experts' stage with it.")
     for e in range(a.n_experts):
         marker = Path(expert_dir(a, e)) / "DONE"
         if marker.exists() and not a.force:
@@ -252,7 +265,8 @@ def stage_users(a):
             if (Path(user_dir(a, b, r)) / "model.pth").exists() and not a.force:
                 log.info("budget %d run %d: done already, skipping", b, r)
                 continue
-            set_seed(a.seed + 100_000 + b * 100 + r)
+            base = a.seed + 100_000 if a.user_seed is None else a.user_seed
+            set_seed(base + b * 100 + r)
             timed(f"user model: budget {b}, run {r + 1}/{a.n_user_runs}",
                   train_user.run, f"{a.name}/user_{b}", "train_user", slurm_id=r)
 
